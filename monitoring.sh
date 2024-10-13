@@ -1,19 +1,5 @@
 #!/bin/bash
 
-# Tu script debe siempre mostrar la siguiente información via wall cada 10 minutos:
-# • La arquitectura de tu sistema operativo y su versión de kernel.
-# • El número de núcleos físicos.
-# • El número de núcleos virtuales.
-# • La memoria RAM disponible actualmente en tu servidor y su porcentaje de uso.
-# • La memoria disponible actualmente en tu servidor y su utilización como un porcentaje.
-# • El porcentaje actual de uso de tus núcleos.
-# • La fecha y hora del último reinicio.
-# • Si LVM está activo o no.
-# • El número de conexiones activas.
-# • El número de usuarios del servidor.
-# • La dirección IPv4 de tu servidor y su MAC (Media Access Control)
-# • El número de comandos ejecutados con sudo.
-
 # Arquitectura del sistema operativo y su versión de kernel
 architecture=$(uname -a)
 
@@ -30,7 +16,7 @@ memory_percent=$(free --mega | awk '/Mem/ {printf("(%.2f%%)\n", $3/$2*100)}')
 
 # Memoria disponible actualmente en tu servidor y su utilización como un porcentaje
 disk_used=$(df -m | grep "/dev/" | grep -v "/boot" | awk '{disk_used += $3} END {print disk_used}')
-disk_total=$(df -m | grep "/dev/" | grep -v "/boot" | awk '{disk_total += $2} END {print ("%.1fGb", disk_total)}')
+disk_total=$(df -m | grep "/dev/" | grep -v "/boot" | awk '{disk_total += $2} END {printf ("%.1fGb", disk_total/1024)}')
 disk_percent=$(df -m | grep "/dev/" | grep -v "/boot" | awk '{disk_used += $3} {disk_total += $2} END {printf("(%.2f%%)\n", disk_used/disk_total*100)}')
 
 # Porcentaje actual de uso de tus núcleos
@@ -40,4 +26,30 @@ cpu_load=$(vmstat 1 2 | tail -1 | awk '{printf ("%.1f%%\n", 100-$15)}')
 last_boot=$(who -b | awk '/system/ {print $3, $4}')
 
 # Si LVM está activo o no
-lvm_status=$(lsblk | grep "lvm" | wc -l)
+lvm_use=$(if [ $(lsblk | grep "lvm" | wc -l) -gt 0 ]; then echo "yes"; else echo "no"; fi)
+
+# Número de conexiones activas TCP
+tcp_connections=$(ss -ta | grep "ESTAB" | wc -l)
+
+# Número de usuarios del servidor
+user_log=$(users | wc -w)
+
+# Dirección IPv4 de tu servidor y su MAC (Media Access Control)
+network_ip=$(hostname -I)
+network_mac=$(ip link | awk '/link\/ether/ {print $2}')
+
+# Número de comandos ejecutados con sudo
+sudo_commands=$(journalctl -q _COMM=sudo | grep COMMAND | wc -l)
+
+wall "	#Architecture: $architecture
+	#CPU physical: $cpu_physical
+	#vCPU: $cpu_virtual
+	#Memory Usage: $memory_used/${memory_total}MB $memory_percent
+	#Disk Usage: $disk_used/$disk_total $disk_percent
+	#CPU Load: $cpu_load
+	#Last boot: $last_boot
+	#LVM use: $lvm_use
+	#TCP Connections: $tcp_connections ESTABLISHED
+	#User log: $user_log
+	#Network: IP ${network_ip}($network_mac)
+	#Sudo: $sudo_commands cmd"
